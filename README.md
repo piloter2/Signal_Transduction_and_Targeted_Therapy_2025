@@ -1,5 +1,5 @@
 ## Oligodendrocyte precursor cells-microglia cross talk via BMP4 signaling drives microglial neuroprotective response and mitigates Alzheimer's disease progression.
-This repository contains the R analysis pipeline used to investigate the role of BMP4 signaling in Oligodendrocyte Precursor Cells (OPCs) and their crosstalk with Microglia in Alzheimer's disease (AD) progression. The analysis integrates in-house scRNA-seq datasets (inDrops platform) with public datasets (SmartSeq2) to identify neuroprotective responses.
+This repository contains the full computational pipeline for analyzing single-cell RNA-sequencing (scRNA-seq) data, focusing on Oligodendrocyte lineage cells in 5xFAD vs. WT mouse models.
 
 ### 📌 Project Overview
 #### Study Title: OPC-Microglia Crosstalk via BMP4 Signaling in Alzheimer's Disease
@@ -16,7 +16,6 @@ This repository contains the R analysis pipeline used to investigate the role of
 └── final_Rdata/           # Processed Seurat objects (.RDS)
 
 ### Supplementary Figure 2.  Single-Cell RNA-seq Analysis Pipeline for Oligodendrocyte Lineage
-
 This repository contains the R analysis pipeline for integrating and analyzing single-cell RNA sequencing (scRNA-seq) data from multiple sources to study oligodendrocyte lineage cells in various mouse models (Alzheimer's Disease, Cuprizone model, etc.).
 
 #### Datasets Integrated
@@ -26,7 +25,7 @@ The following datasets are processed and integrated:
 - **GSE148676**: Cuprizone-induced demyelination model.
 
 ### Figure 2 & Supplementary Figure 6, 8
-This repository contains the full computational pipeline for analyzing single-cell RNA-sequencing (scRNA-seq) data, focusing on Oligodendrocyte lineage cells in 5xFAD vs. WT mouse models.
+This repository contains the R analysis pipeline used to investigate the role of BMP4 signaling in Oligodendrocyte Precursor Cells (OPCs) and their crosstalk with Microglia in Alzheimer's disease (AD) progression. The analysis integrates in-house scRNA-seq datasets (inDrops platform) with public datasets (SmartSeq2) to identify neuroprotective responses.
 
 ### 🚀 Analysis Workflow
 The pipeline consists of two main stages:
