@@ -6,8 +6,10 @@
 #              Includes QC (DoubletFinder), Integration (Harmony), Annotation,
 #              UCell Scoring, and Enrichment Analysis (GO/Reactome).
 # Author: Jaemyung Jang / Korea Brain Research Institue (piloter2@kbri.re.kr)
-# Date: 2025-07-16
+          Jongphil Kim / 
+# Date: 2023-07-06
 # ==============================================================================
+###### UMIFM = 500, decontamn = 0.001, BMP4KO_final_2023-07-06 15-58-10.Rdata
 
 # ------------------------------------------------------------------------------
 # 1. Setup & Configuration
@@ -94,7 +96,7 @@ filtereddata.OLsort <- parallel::parLapply(cl, path_counts, function(path) {
 
 # Step 2.3: Process & Doublet Removal
 cat("Processing datasets and removing doublets...\n")
-OL_sort <- foreach(exponent = 1:length(path_counts), .packages="Seurat") %dopar% {
+cor_colagen <- foreach(exponent = 1:length(path_counts), .packages="Seurat") %dopar% {
   
   filt_indices <- which(colnames(filtereddata.OLsort[[exponent]]) %in% data.OLsort[[exponent]])
   
@@ -123,64 +125,153 @@ OL_sort <- foreach(exponent = 1:length(path_counts), .packages="Seurat") %dopar%
   }
 }
 
-# Cleanup Empty Entries
-names(OL_sort) <- sapply(str_split(path_counts, "/"), function(x) {
-  # Logic to extract ID from filename, adjust splitting index as needed
-  tail(str_split(x, "/")[[1]], 1) 
-})
-OL_sort.filtered <- compact(OL_sort)
+# # Cleanup Empty Entries
+# names(cor_colagen) <- sapply(str_split(path_counts, "/"), function(x) {
+#   # Logic to extract ID from filename, adjust splitting index as needed
+#   tail(str_split(x, "/")[[1]], 1) 
+# })
+# cor_colagen <- compact(cor_colagen)
 
+genetype <- c(rep("Pdgfa-cre;BMP4fl.fl;5xFAD",5),
+              rep("5xFAD (C57BL/6)",7))
+filename <- unlist(lapply(fileListCNTs,function(x){strsplit(x,".counts.tsv.gz")[[1]][1]}))
+date <- c()
+date[grep("210706", filename)] <- "210706"
+date[grep("210910", filename)] <- "210910"
+date[c(1:2,6:7)] <- "200820"
+
+for(i in 1:length(cor_colagen)) {
+  cor_colagen[[i]]$genetype <- genetype[i]
+  cor_colagen[[i]]$date <- date[i]
+  cor_colagen[[i]]$platform <- "inDrops"
+  cor_colagen[[i]]$id <- filename[i]
+  # cor_colagen[[i]]$basic <- "cor_colagen"
+  cor_colagen[[i]]$new_ident <- paste0(filename[i],"_", genetype[i],"_",date[i])  
+    
+}
+
+# # soupX
+if (!require("SoupX", quietly = TRUE))
+    install.packages("SoupX")
+
+require(SoupX)
+
+scNoDrop <-list()
+for(i in 1:length(cor_colagen)) {
+  toc <- GetAssayData(cor_colagen[[i]]) 
+  # tod <-  cor_colagen_[[i]]
+
+  scNoDrops = SoupChannel(toc, toc, calcSoupProfile = FALSE)
+
+  soupProf = data.frame(row.names = rownames(toc), est = rowSums(toc)/sum(toc), counts = rowSums(toc))
+  scNoDrop[[i]] = setSoupProfile(scNoDrops, soupProf)
+}
+
+dreopGenes <- list()
+for(i in 1:length(cor_colagen)) {
+  sc <- scNoDrop[[i]] 
+  #sc = setContaminationFraction(sc, 0.1)
+  #head(sc$soupProfile[order(sc$soupProfile$est, decreasing = TRUE), ], n = 20)
+  
+  dreopGenes[[i]]<-sc$soupProfile[which(sc$soupProfile$est>0.001), ] %>% rownames()
+}
+
+
+ dropGenes.filtered <- lapply(dreopGenes, function(gene) {
+   return(setdiff(gene, grep("^mt.|^Hba.|^Hbb.", gene, value = TRUE)))
+ })
+ 
+
+cor_colagen.filtered<-list()
+for(i in 1:length(cor_colagen)) {
+  cor_colagen.filtered[[i]] <- cor_colagen[[i]][-which(rownames(cor_colagen[[i]]) %in%  dropGenes.filtered[[i]]),]
+}
+
+cor_colagen_ <- lapply(cor_colagen.filtered, processA)
+             
+ ## Reference GSE71585
+GSE71585.RefSeq.counts <- read.table(file = "/home/choelab/working/public_dataset/GSE71585/GSE71585_RefSeq_counts.csv", sep =",", header =T)
+GSE71585.meta <- read.table(file = "/home/choelab/working/public_dataset/GSE71585/GSE71585_Clustering_Results.csv", sep =",", header =T)
+GSE71585.meta <- GSE71585.meta %>% tibble::column_to_rownames('sample_title')
+rownames(GSE71585.meta) <- gsub("\\-", ".", rownames(GSE71585.meta))
+GSE71585.RefSeq.counts <- GSE71585.RefSeq.counts %>% tibble::column_to_rownames('gene')
+
+rownames(GSE71585.RefSeq.counts)[grep("Epb4", rownames(GSE71585.RefSeq.counts))] <- c('Epb41', 'Epb41l1', 'Epb41l2', 'Epb41l3', 'Epb41l4a', 'Epb41l4b', 'Epb41l5', 'Epb42', 'Epb49')
+rownames(GSE71585.RefSeq.counts) <- gsub("\\-", ".", rownames(GSE71585.RefSeq.counts))
+
+GSE71585.RefSeq.count <- CreateSeuratObject(counts =  GSE71585.RefSeq.counts, project = "GSE71585.RefSeq", min.cells = 0,  meta.data = GSE71585.meta)
+# GSE71585.RefSeq.counts_ <- CreateSeuratObject(counts =  GSE71585.RefSeq.counts %>% tibble::column_to_rownames('gene'), project = "GSE71585.RefSeq", min.cells = 10)
+
+base::gc()
+GSE71585.RefSeq.counts_ <- processB(GSE71585.RefSeq.count)
+GSE71585.RefSeq.counts_$basic <- GSE71585.RefSeq.counts_$genetype <- GSE71585.RefSeq.counts_$id <- "GSE71858"
+GSE71585.RefSeq.counts_$platform <- "SmartSeq2"
+             
 # ------------------------------------------------------------------------------
 # 3. Preprocessing & Integration (SCT + Harmony)
 # ------------------------------------------------------------------------------
-cat("Preprocessing individual objects...\n")
 
-OL_sort_ <- compact(lapply(names(OL_sort.filtered), function(x){
-  obj <- OL_sort.filtered[[x]]
-  if(!is.null(obj) && ncol(obj) > 100){
-    obj$basic <- "OL sorted"
-    obj$id <- x
-    obj$genetype <- ifelse(grepl("WT", toupper(x)), "WT", "TG")
-    obj$new_ident <- paste0(x, "_", obj$genetype)
-    
-    # QC Metrics
-    obj[["percent.mt"]] <- PercentageFeatureSet(obj, pattern = paste0(c(mt.genes, "^mt."), collapse = "|"))
-    obj[["percent.ribosomal"]] <- PercentageFeatureSet(obj, pattern = "^Rpl|^Rps")
-    obj[["percent.hb"]] <- PercentageFeatureSet(obj, pattern = '^Hba.a1$|^Hba.a2$|^Hba.x$|^Hbb.bh1$|^Hbb.bh2$|^Hbb.bs$|^Hbb.bt$|^Hbq1b$|^Hbb.y$|^Hbq1a$')
-    
-    obj <- processA(obj) # Assuming processA is in the sourced script
-    return(obj)
-  }
-  return(NULL)
-}))
+##### PROCESS 1 - integration & SCT & Clustering
 
-cat("Merging and Integrating...\n")
-OLs.merged <- merge(OL_sort_[[1]], y = OL_sort_[-1], project = 'merged', merge.data = TRUE)
+cor.71585.merge <- merge(GSE71585.RefSeq.counts_, y= cor_colagen_ , project = 'bmp4ko', merge.data = FALSE)
+cor.71585.merge.features <- SelectIntegrationFeatures(object.list = c(cor_colagen_ , GSE71585.RefSeq.counts_), nfeatures = 5000)
+cor.71585.merge.features <- setdiff(cor.71585.merge.features, grep(c("^mt-|^mt.|^Hba|^Hbb|^Hbd|^Hbg1|^Hbq1|^Hbm"), cor.71585.merge.features, value =T))
 
-# Normalization & Cell Cycle Scoring
-OLs.merged <- SCTransform(OLs.merged, assay = 'RNA', new.assay.name = 'SCT', 
-                          vars.to.regress = c('percent.mt','nFeature_RNA','percent.hb'), verbose = T)
-OLs.merged <- CellCycleScoring(OLs.merged, s.features = intersect(rownames(OLs.merged), s.gene), 
-                               g2m.features = intersect(rownames(OLs.merged), g2m.gene), assay = 'SCT')
-OLs.merged <- SCTransform(OLs.merged, assay = 'RNA', new.assay.name = 'SCT', 
-                          vars.to.regress = c('percent.mt','nFeature_RNA', 'S.Score', 'G2M.Score','percent.hb'), verbose = T)
+base::gc()
 
-# Feature Selection excluding mitochondrial/hemoglobin genes
-OLs.merge.features <- SelectIntegrationFeatures(object.list = OL_sort_, nfeatures = 2000)
-OLs.merge.features <- setdiff(OLs.merge.features, grep("^mt-|^mt.|^Hba|^Hbb|^Hbd|^Hbg1|^Hbq1|^Hbm", rownames(OLs.merged), value = TRUE))
+cor.71585.merge <- cor.71585.merge  %>%
+                  SCTransform(assay = 'RNA',      
+                              new.assay.name = 'SCT', 
+                              vars.to.regress = c('percent.mt', 'nFeature_RNA','percent.Hb'),
+                              verbose = T)  %>% # normalize data with SCTransform()
+                  CellCycleScoring(s.features = intersect(rownames(cor.71585.merge),s.gene),  # Perform cell cycle analysis
+                                   g2m.features = intersect(rownames(cor.71585.merge),g2m.gene),
+                                   assay = 'SCT',
+                                   set.ident = TRUE) %>%
+                  SCTransform(assay = 'RNA',
+                              new.assay.name = 'SCT',
+                              vars.to.regress = c('percent.mt', 'nFeature_RNA', 'S.Score', 'G2M.Score','percent.Hb'),
+                              verbose = T) 
 
-# Dimensionality Reduction
-pcs <- 1:25
-DefaultAssay(OLs.merged) <- "SCT"
-OLs.merged <- RunPCA(OLs.merged, verbose = FALSE, assay = "SCT", features = OLs.merge.features)
-# Uncomment Harmony if needed:
-# OLs.merged <- RunHarmony(OLs.merged, group.by="id", assay.use="SCT", dims=pcs)
-OLs.merged <- RunUMAP(OLs.merged, reduction = "pca", umap.method = "umap-learn", assay = "SCT", dims = pcs)
-OLs.merged <- FindNeighbors(OLs.merged, reduction = "pca", dims = pcs, assay = "SCT")
-OLs.merged <- FindClusters(OLs.merged, resolution = seq(0.1, 2, 0.1), algorithm = 4)
 
-OLs.merge1.id <- OLs.merged
+pcs <- 50
+set.seed(1234)
+if (!require("harmony", quietly = TRUE))
+    install.packages("harmony")
+require(harmony)
+cor.71585.merge.genetype <-cor.71585.merge %>%
+                          RunPCA(verbose = FALSE, assay = "SCT", features = cor.71585.merge.features) %>%
+                          RunHarmony(group.by=c("platform", "id"), assay.use = "SCT", dims=1:pcs, max.iter.harmony = 100,max.iter.cluster = 200) %>% 
+                          RunUMAP(reduction = "harmony", assay = "SCT", umap.method = "umap-learn", dims=1:pcs)  %>% 
+                          FindNeighbors(reduction = "harmony", assay = "SCT", dims=1:pcs, graph.name = "RNA_snn") %>%
+                          FindClusters(resolution = seq(0.1,2,0.1), algorithm = 4, graph.name = "RNA_snn")
 
+Idents(cor.71585.merge.genetype) <- "RNA_snn_res.1.2" # original
+
+# measuring silhouette score
+cor.71585.merge.genetype.sub <- subset(cor.71585.merge.genetype, subset= platform == "inDrops")
+pcs <- 1:50
+for(res in seq(0.1,2,0.1)) {
+  
+  require(cluster)
+  distance_matrix <- dist(Embeddings(cor.71585.merge.genetype.sub[['pca']])[, pcs])
+  # distance_matrix <- dist(Embeddings(hipp_merged[['pca']]))
+  clusters <- eval(parse(text=sprintf("cor.71585.merge.genetype.sub@meta.data$RNA_snn_res.%s",res)))
+  
+  #dat.combined@meta.data$seurat_clusters
+  silhouette <- silhouette(as.numeric(clusters), dist = distance_matrix)
+  cor.71585.merge.genetype.sub@meta.data$silhouette_score <- silhouette[,3]
+  
+  mean_silhouette_score <- mean(cor.71585.merge.genetype.sub@meta.data$silhouette_score)
+  median_silhouette_score <- median(cor.71585.merge.genetype.sub@meta.data$silhouette_score)
+  mad_silhouette_score <- mad(cor.71585.merge.genetype.sub@meta.data$silhouette_score)
+  
+  df <- data.frame('resolution'=res, 'mean'=mean_silhouette_score,'median'=median_silhouette_score,'mad'=mad_silhouette_score)
+  
+  print(df)
+  
+}         
+             
 # ------------------------------------------------------------------------------
 # 4. Cell Type Annotation
 # ------------------------------------------------------------------------------
