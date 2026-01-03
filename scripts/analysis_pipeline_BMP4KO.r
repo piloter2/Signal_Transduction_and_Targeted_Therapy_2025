@@ -6,7 +6,6 @@
 #              Includes QC (DoubletFinder), Integration (Harmony), Annotation,
 #              UCell Scoring, and Enrichment Analysis (GO/Reactome).
 # Author: Jaemyung Jang / Korea Brain Research Institue (piloter2@kbri.re.kr)
-          Jongphil Kim / 
 # Date: 2023-07-06
 # ==============================================================================
 ###### UMIFM = 500, decontamn = 0.001, BMP4KO_final_2023-07-06 15-58-10.Rdata
@@ -271,123 +270,7 @@ for(res in seq(0.1,2,0.1)) {
   print(df)
   
 }         
-             
-# ------------------------------------------------------------------------------
-# 4. Cell Type Annotation
-# ------------------------------------------------------------------------------
-Idents(OLs.merge1.id) <- "SCT_snn_res.0.9" 
 
-# Manual Annotation Map
-celltype_map <- c(
-  "1" = "OL_mixed-B", "2" = "EPC A", "3" = "EPC B", "4" = "choroidal macrophages",
-  "5" = "OL_mixed-A", "6" = "NEUR A", "7" = "U-5", "8" = "NEUR B",
-  "9" = "NFOL", "10" = "MG", "11" = "OL_S", "12" = "EPC C",
-  "13" = "NFOL-WT", "14" = "ASC", "15" = "U-1", "16" = "MOL",
-  "17" = "U-2", "18" = "Endo", "19" = "U-3", "20" = "Mural",
-  "21" = "U-4", "22" = "NEUR C", "23" = "OPC/COP", "24" = "OL_U",
-  "25" = "COP", "26" = "Fib"
-)
-
-OLs.merge1.id <- RenameIdents(OLs.merge1.id, celltype_map)
-OLs.merge1.id$broad_type <- Idents(OLs.merge1.id)
-
-# ------------------------------------------------------------------------------
-# 5. Visualization (DimPlots & DotPlots)
-# ------------------------------------------------------------------------------
-cat("Generating Plots...\n")
-target_clusters <- c('OL_mixed-B','OL_mixed-A','NFOL','OL_S','NFOL-WT','MOL','OPC/COP','OL_U','COP')
-# Or use cluster IDs: c('1','5','9','11','13','16','23','24','25')
-
-p1a <- DimPlot(OLs.merge1.id, reduction = "umap", group.by = "broad_type", label = FALSE) + NoAxes()
-ggsave(file.path(RESULT_DIR, "Figure2b_Dim.jpeg"), p1a, width = 7.5, height = 7.5, dpi = 300)
-
-p1c <- plot_density(subset(OLs.merge1.id, idents = target_clusters), 
-                    features = c("Bmp4","Pdgfra","Cspg4","Mobp","Bcas1","Tlcd2","Lrrc17","Plp1", "Mbp"), 
-                    reduction = "umap", pal = "inferno")
-ggsave(file.path(RESULT_DIR, "Figure2d_Den.jpeg"), p1c, width = 16, height = 12, dpi = 300)
-
-# ------------------------------------------------------------------------------
-# 6. UCell Scoring & Comparison
-# ------------------------------------------------------------------------------
-cat("Running UCell Scoring...\n")
-marker_sets <- list(
-  "INF" = inflammation, # Ensure 'inflammation' variable is defined in sourced script
-  "Myelination" = c("Adam10","Adgrg6","Akt1","Mbp","Mog","Plp1","Olig2","Sox10"), # (Truncated for brevity)
-  "NFkB" = c("Nfkb1","Rela","Relb","Nfkbia")
-)
-
-OLs.merge1.score <- AddModuleScore_UCell(OLs.merge1.id, features = marker_sets, assay = "RNA")
-
-# Boxplots for comparison (5xFAD vs WT)
-# (Loop logic simplified for readability)
-clusters_to_test <- c('1','5','9','11','16','23','24','25')
-
-for(s in clusters_to_test) {
-  obj_sub <- subset(OLs.merge1.score, idents = s)
-  obj_sub$genetype <- factor(ifelse(obj_sub$genetype=="WT", "C57BL/6", "Tg6799"))
-  
-  # Example: Myelination Score
-  p_box <- ggbetweenstats(
-    data = data.frame(genetype = obj_sub$genetype, Score = obj_sub$Myelination_UCell),
-    x = genetype, y = Score, type = "p", pairwise.comparisons = FALSE,
-    title = paste0("Cluster ", s)
-  )
-  # Save or print p_box as needed
-}
-
-# ------------------------------------------------------------------------------
-# 7. Differential Expression & Pathway Analysis (GO/Reactome)
-# ------------------------------------------------------------------------------
-cat("Running DE and Pathway Analysis...\n")
-
-# 7.1 DE Analysis (MAST)
-OLs.merge1.DE <- lapply(names(table(Idents(OLs.merge1.id))), function(i){
-  obj_sub <- subset(OLs.merge1.id, idents = i)
-  if(ncol(obj_sub) > 10) {
-    tryCatch({
-      FindMarkers(obj_sub, ident.1 = "TG", ident.2 = "WT", group.by = "genetype",
-                  test.use = "MAST", assay = "RNA", logfc.threshold = 0.001)
-    }, error = function(e) return(NULL))
-  } else { return(NULL) }
-})
-names(OLs.merge1.DE) <- names(table(Idents(OLs.merge1.id)))
-
-# 7.2 Pathway Analysis Loop
-# Initialize lists for results
-enrich_res <- list(bp = list(), cc = list(), mf = list(), reactome = list())
-
-for(id in clusters_to_test) {
-  if(!is.null(OLs.merge1.DE[[id]])) {
-    # Prepare Gene List
-    selectedGene <- OLs.merge1.DE[[id]] %>% dplyr::filter(p_val < 0.01 & abs(avg_log2FC) > 0.25)
-    selectedGene <- selectedGene[!grepl("^mt\\.", rownames(selectedGene)),]
-    
-    if(nrow(selectedGene) > 0){
-      gene_map <- AnnotationDbi::select(org.Mm.eg.db, keys = rownames(selectedGene),
-                                        columns = c("ENTREZID", "SYMBOL"), keytype = "SYMBOL")
-      
-      gene_list_sorted <- selectedGene$avg_log2FC
-      names(gene_list_sorted) <- gene_map$ENTREZID[match(rownames(selectedGene), gene_map$SYMBOL)]
-      gene_list_sorted <- sort(na.omit(gene_list_sorted), decreasing = TRUE)
-      
-      # Run Enrichment (GO BP example)
-      tryCatch({
-        gse.bp <- gseGO(geneList = gene_list_sorted, ont = "BP", OrgDb = org.Mm.eg.db,
-                        keyType = "ENTREZID", pvalueCutoff = 0.1, verbose = FALSE)
-        enrich_res$bp[[id]] <- setReadable(gse.bp, 'org.Mm.eg.db', 'ENTREZID')
-      }, error = function(e) NULL)
-      
-      # Reactome
-      tryCatch({
-        res.react <- gsePathway(gene_list_sorted, organism = "mouse", pvalueCutoff = 0.1, verbose = FALSE)
-        enrich_res$reactome[[id]] <- setReadable(res.react, 'org.Mm.eg.db', 'ENTREZID')
-      }, error = function(e) NULL)
-    }
-  }
-}
-
-# 7.3 Visualization of Pathways (Barplot example)
-# (Logic for p1e_total extracted here)
-
-cat("Pipeline Finished. Saving Session...\n")
-saveRDS(OLs.merge1.id, file.path(RESULT_DIR, "OLs.merged.final.rds"))
+saveRDS(cor_colagen, "/path/to/data/final_Rdata/bmp4ko_rawdata_UMIFM500.RDS")
+saveRDS(cor.71585.merge.genetype.sub, file.path(RESULT_DIR, "bmp4ko_workingOBJ_20230703.RDS"))
+saveRDS(cor.71585.merge.genetype, file.path(RESULT_DIR, "bmp4ko_merged_20230704.RDS"))
