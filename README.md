@@ -8,15 +8,6 @@ The following datasets are processed and integrated:
 - **GSE153895**: P301L mouse model.
 - **GSE148676**: Cuprizone-induced demyelination model.
 
-#### Prerequisites
-
-#### R Environment
-This pipeline uses **R version 4.x**. Ensure the following packages are installed:
-
-```r
-install.packages(c("Seurat", "tidyverse", "Matrix", "cowplot", "ggpubr", "harmony", "BiocManager"))
-BiocManager::install(c("biomaRt", "SingleCellExperiment", "scDblFinder"))
-# Note: 'indRop' is a custom package required for reading Indrop data.
 
 ## Single-Cell RNA-seq Analysis Pipeline for Oligodendrocyte Lineage
 
@@ -35,9 +26,13 @@ The analysis follows a standard single-cell workflow with specific customization
 
 #### Prerequisites
 
-#### Dependencies
-Ensure the following R packages are installed. 
+#### R Environment
+This pipeline uses **R version 4.x**. Ensure the following packages are installed:
 
+```r
 * **CRAN**: `Seurat`, `tidyverse`, `Matrix`, `harmony`, `parallel`, `doParallel`
 * **Bioconductor**: `SingleCellExperiment`, `scDblFinder`, `clusterProfiler`, `ReactomePA`, `EnhancedVolcano`, `UCell`
 * **Custom/GitHub**: `indRop`, `Nebulosa`
+install.packages(c("Seurat", "tidyverse", "Matrix", "cowplot", "ggpubr", "harmony", "BiocManager"))
+BiocManager::install(c("biomaRt", "SingleCellExperiment", "scDblFinder"))
+# Note: 'indRop' is a custom package required for reading Indrop data.
