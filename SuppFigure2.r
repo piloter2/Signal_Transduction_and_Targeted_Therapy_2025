@@ -77,88 +77,17 @@ plot_custom_dimplot <- function(obj, group_by, reduction = "umap", label = TRUE,
   return(p)
 }
 
-# ==============================================================================
-# 3. Cell Type Annotation Update
-# ==============================================================================
-
-# Define Cluster to Cell Type Mapping
-# Using a named vector for efficient mapping instead of repeated subset calls
-cluster_mapping <- c(
-  "4" = "OPC", "6" = "OPC", "12" = "OPC", "14" = "OPC", "18" = "OPC", "19" = "OPC", "23" = "OPC",
-  "11" = "COP", "21" = "COP",
-  "0" = "Oligodendrocytes", "1" = "Oligodendrocytes", "2" = "Oligodendrocytes", "3" = "Oligodendrocytes",
-  "5" = "Oligodendrocytes", "7" = "Oligodendrocytes", "8" = "Oligodendrocytes", "9" = "Oligodendrocytes",
-  "10" = "Oligodendrocytes", "13" = "Oligodendrocytes", "15" = "Oligodendrocytes", "16" = "Oligodendrocytes",
-  "17" = "Oligodendrocytes", "20" = "Oligodendrocytes"
-)
-
-# Apply mapping
-# Note: Ensure 'idents' corresponds to the clustering resolution used for mapping (e.g., SCT_snn_res.0.4)
-# Assuming OL.mergedd active ident is the cluster ID
-current_clusters <- as.character(Idents(OL.mergedd))
-new_labels <- cluster_mapping[current_clusters]
-# Assign original cluster ID if no mapping found (optional safety check)
-# new_labels[is.na(new_labels)] <- current_clusters[is.na(new_labels)]
-OL.mergedd$new_cell_type <- new_labels
-
-# ==============================================================================
-# 4. Genotype Annotation Update
-# ==============================================================================
-
-# Subset for OL.COP specific analysis
-OL.COP <- subset(OL.merged, idents = c(11, 21))
-
-# Define Genotype Mapping based on ID
-# Assuming 'id' corresponds to specific experimental conditions or samples
-# Refactored from repetitive 'which' statements to a loop or vectorized approach
-genotype_map <- c(
-  "1" = "PS2/APP/P301L", "2" = "PS2/APP/P301L/TREM2KO", "3" = "PS2/APP/P301L",
-  "4" = "PS2/APP/P301L/TREM2KO", "5" = "PS2/APP/P301L", "6" = "P301L",
-  "7" = "WT", "8" = "WT", "9" = "WT", "10" = "PS2/APP/P301L/TREM2KO",
-  "11" = "P301L", "12" = "P301L", "13" = "WT", "14" = "PS2/APP",
-  "15" = "WT", "16" = "PS2/APP", "17" = "WT", "18" = "PS2/APP",
-  "19" = "WT", "20" = "WT", "21" = "WT", "22" = "PS2/APP",
-  "23" = "WT", "24" = "PS2/APP", 
-  "25" = "WT/Ctrl_0wks", "26" = "WT/Ctrl_3wks", 
-  "27" = "WT/CupRap_3wks", "28" = "WT/CupRap_3wks",
-  "29" = "NesCre/Ctrl_3wks", "30" = "NesCre/Ctrl_3wks",
-  "31" = "NesCre/CupRap_3wks", "32" = "NesCre/CupRap_3wks",
-  "33" = "WT/CupRap_0wk", "34" = "WT/CupRap_0wk",
-  "35" = "WT/CTRL", "36" = "WT/CPZ3", "37" = "WT/XPro1595_CPZ3"
-)
-
-# Apply Genotype Mapping
-# Note: This logic assumes 'id' in metadata matches the index order of table(OL.COP$id)
-# Ideally, map directly from ID string if possible. Assuming 'id' is a factor or character matching the map keys.
-# Since the original code used index-based mapping from table(), we replicate that logic safely.
-unique_ids <- names(table(OL.COP$id))
-for(i in seq_along(unique_ids)){
-  target_id <- unique_ids[i]
-  if(as.character(i) %in% names(genotype_map)){
-     OL.COP$genetype[OL.COP$id == target_id] <- genotype_map[as.character(i)]
-  }
-}
-
-# Handle Special Case for GSE278199
-OL.COP$genetype[OL.COP$basic == "GSE278199" & is.na(OL.COP$genetype)] <- "WT/CPZ"
-
-
-# ==============================================================================
-# 5. UMAP Plots Generation
-# ==============================================================================
-
-# Define specific sample IDs for subset plotting (e.g., PS2APP cohort)
-target_subset_ids <- names(table(OL.mergedd$id))[c(7:9, 13:24)]
+ref.merge.oligo <- readRDS(paste0(BASE_DIR,"/data/ref.merge.oligo.rds"))
 
 # Generate Plots : Supplementary Figure 2a
-sp2a <- plot_custom_dimplot(OL.mergedd, group_by = "new_cell_type", label = FALSE)
+sp2a <- plot_custom_dimplot(ref.merge.oligo, group_by = "ref.celltype", label = FALSE)
 
 # ==============================================================================
-# 6. Differential Expression (COP Markers)
+# 3. Differential Expression (COP Markers)
 # ==============================================================================
 
 # Subset for PS2APP analysis
-PS2APP <- subset(OL.mergedd, subset = id %in% target_subset_ids)
+PS2APP <- subset(ref.merge.oligo, subset = id %in% target_subset_ids)
 PS2APP <- PrepSCTFindMarkers(PS2APP)
 
 # Find Markers
@@ -196,7 +125,7 @@ EnhancedVolcano(COP.markers,
                 maxoverlapsConnectors = 50)
 
 # ==============================================================================
-# 7. Comparison Analysis (Heatmap across Datasets)
+# 4. Comparison Analysis (Heatmap across Datasets)
 # ==============================================================================
 
 # Helper function for DE
