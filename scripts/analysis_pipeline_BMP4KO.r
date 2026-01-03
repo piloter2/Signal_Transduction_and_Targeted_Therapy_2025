@@ -1,6 +1,8 @@
 # ==============================================================================
-# Project: Oligodendrocyte Lineage Sorting & Analysis Pipeline
-# Description: Full pipeline from raw count processing to pathway analysis.
+# Oligodendrocyte precusor cells-microglia cross talk via BMP4 signaling drives microglial neuroprotective response and mitigates Alzheimer's diseas progression
+# Description: Integration and analysis of in-house and public scRNA-seq datasets 
+#              to investigate oligodendrocyte changes in Alzheimer's disease models.
+#              Full pipeline from raw count processing to pathway analysis.
 #              Includes QC (DoubletFinder), Integration (Harmony), Annotation,
 #              UCell Scoring, and Enrichment Analysis (GO/Reactome).
 # Author: Jaemyung Jang / Korea Brain Research Institue (piloter2@kbri.re.kr)
