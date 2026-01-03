@@ -1,3 +1,15 @@
+# ==============================================================================
+# Title : Oligodendrocyte precusor cells-microglia cross talk via BMP4 signaling drives microglial neuroprotective response and mitigates Alzheimer's diseas progression
+# Author: Jaemyung Jang / Korea Brain Research Institute (piloter2@kbri.re.kr)
+# Description: This script performs visualization, differential expression analysis, and 
+#   clustering annotation for oligodendrocyte lineage cells (OPC, COP, OL)
+# Date: 2024-12-07
+# ==============================================================================
+
+# ==============================================================================
+# 1. Setup & Configuration
+# ==============================================================================
+
 # Load necessary libraries
 library(Seurat)
 library(ggplot2)
@@ -10,10 +22,12 @@ library(org.Mm.eg.db)
 library(clusterProfiler)
 library(ReactomePA)
 
-# 1. Load Data
 cor.71585.merge.genetype.sub <- readRDS("/path/to/bmp4ko_workingOBJ_20230703.RDS")
 
+# ==============================================================================
 # 2. Annotation & Cell Type Assignment
+# ==============================================================================
+
 Idents(cor.71585.merge.genetype.sub) <- "RNA_snn_res.1.4"
 cell_type_map <- c(
   "1"  = "Neuron 1",
@@ -67,8 +81,13 @@ for(i in names(celltype)){
 
 Idents(cor.71585.merge.genetype.sub) <- as.factor(cor.71585.merge.genetype.sub@meta.data$broad_type)
 
+
+# ==============================================================================
 # 3. Visualization (DimPlot & DotPlot)
-p4a <- DimPlot(subset(cor.71585.merge.genetype.sub, idents = names(table(Idents(cor.71585.merge.genetype.sub)))[table(Idents(cor.71585.merge.genetype.sub))>150]),
+# ==============================================================================
+
+# Figure2i
+p2i <- DimPlot(subset(cor.71585.merge.genetype.sub, idents = names(table(Idents(cor.71585.merge.genetype.sub)))[table(Idents(cor.71585.merge.genetype.sub))>150]),
              group.by = "broad_type", 
              cols = c(pal_npg("nrc")(10)[c(2:6)],pal_npg("nrc")(10)[c(7,9)],pal_aaas("default")(10)[c(1:8)],pal_nejm("default")(8)[c(1:3)],pal_nejm("default")(8)[c(4:6)],rep("grey90",2)), 
              label =T, label.size = 4, pt.size = 0.01,raster=FALSE)+
@@ -79,7 +98,8 @@ p4a <- DimPlot(subset(cor.71585.merge.genetype.sub, idents = names(table(Idents(
 
 cor.71585.merge.genetype.sub$new_ident <- factor(cor.71585.merge.genetype.sub$broad_type, levels = names(table(cor.71585.merge.genetype.sub$broad_type))[c(1:7,13,18:21,27:30,33,8:12,31:32,23:26,14:17,22,34:35)])
 
-p4b <- DotPlot(cor.71585.merge.genetype.sub, 
+# Supplementary Figure6a
+sp6a <- DotPlot(cor.71585.merge.genetype.sub, 
             idents = names(table(Idents(cor.71585.merge.genetype.sub)))[table(Idents(cor.71585.merge.genetype.sub))>150],
             features = unique(c(grep("Pdgfa",rownames(cor.71585.merge.genetype.sub), value = TRUE), "Slc1a2", "Enpp2","Flt1","Epyc","Col1a2","Meg3","Snap25","Ptprz1","Bcas1","Apod","Trf","Cnp","Mobp","Mal","Cryab","Ndrg1","Cnp","Car2","Cst3","Ctss","Dcn")), 
             assay="SCT", cols = c("RdBu"), dot.scale = 8) + 
@@ -90,8 +110,10 @@ p4b <- DotPlot(cor.71585.merge.genetype.sub,
                   axis.text = element_text(size = 18))+
             xlab("")+ylab("")
 
-
+# ==============================================================================
 # 4. Differential Expression Analysis (DE)
+# ==============================================================================
+
 cor.71585.merge.genetype.sub.DE <- list()
 
 for(id in 1:length(names(table(cor.71585.merge.genetype.sub$broad_type)))) {
@@ -126,14 +148,14 @@ for(id in 1:length(names(table(cor.71585.merge.genetype.sub$broad_type)))) {
                  } else {
                   cor.71585.merge.genetype.sub.DE[[id]] <- c()
                   }
-            # 경로 수정: 중간 결과 저장 (주석)
             # write.csv(res, paste0("/path/to/results/cluster_DE_",names(table(cor.71585.merge.genetype.sub$broad_type))[id],"_",format(Sys.time(), "%Y-%m-%d %H-%M-%S"),".xlsx"))
 }
 
 names(cor.71585.merge.genetype.sub.DE) <- names(table(cor.71585.merge.genetype.sub$broad_type))
 
-
+# ==============================================================================
 # 5. Plotting DE Numbers
+# ==============================================================================
 dfs <- c()
 for(i in c(33, 8:12, 14:17, 24:26, 31:32)){
   res <- cor.71585.merge.genetype.sub.DE[[i]] %>% dplyr::filter(p_val < 0.05 & avg_log2FC < -0.1) %>% rownames() %>% length()  %>% as.numeric()
@@ -145,7 +167,8 @@ for(i in c(33, 8:12, 14:17, 24:26, 31:32)){
 # 경로 수정: Figure 데이터 저장 (주석)
 # write.csv(dfs, paste0("/path/to/results/Figure3c_DE_num_","_",format(Sys.time(), "%Y-%m-%d %H-%M-%S"),".xlsx"))
 
-p4c <- dfs %>% 
+# Supplementary Figure 6b
+sp6b <- dfs %>% 
    mutate(cell = factor(cell, levels = unique(dfs$cell[c(grep("OPC",dfs$cell), grep("COP",dfs$cell), grep("NFOL",dfs$cell), grep("MOL",dfs$cell), grep("DOL",dfs$cell))]))) %>% 
   ggplot(aes(x=num, y=cell, fill=cell)) +
   geom_bar(position="stack", stat="identity", width = 0.5)+
@@ -160,8 +183,9 @@ p4c <- dfs %>%
   ylab("")+
   RotatedAxis()
 
-
+# ==============================================================================
 # 6. Gene Set Enrichment Analysis (GSEA) - GO, Reactome, WikiPathways
+# ==============================================================================
 
 Mm <- org.Mm.eg.db
 
@@ -286,9 +310,9 @@ for(id in names(cor.71585.merge.genetype.sub.DE)) {
     print(id)
 }
 
-
+# ==============================================================================
 # 7. Save Results to Excel
-# 경로 수정: Supplementary Files 저장
+# ==============================================================================
 
 wb <- createWorkbook()
 # Note: 'cor.71585.merge.genetype.sub.marker2' must be defined prior to this step
