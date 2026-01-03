@@ -5,7 +5,7 @@ This repository contains the full computational pipeline for analyzing single-ce
 ### 📌 Project Overview
 #### Study Title: single-cell analysis about OPC-Microglia Crosstalk via BMP4 Signaling in Alzheimer's Disease
 - Key Biological Focus: BMP4 signaling, OPCs, Microglia, Alzheimer's Disease (5xFAD model).
-- Author: Jaemyung Jang (Korea Brain Research Institute)
+- Author: Soonbong Baek, *Jaemyung Jang*, Seungeun Yeo, Hyun Jin Jung, and Youngshik Choe
 - Contact: piloter2@kbri.re.kr
 
 ### Supplementary Figure 2.  Single-Cell RNA-seq Analysis Pipeline for Oligodendrocyte Lineage
