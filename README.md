@@ -1,4 +1,4 @@
-## Oligodendrocyte Lineage Single-Cell Integration Analysis
+### Supplementary Figure 2.  Single-Cell RNA-seq Analysis Pipeline for Oligodendrocyte Lineage
 
 This repository contains the R analysis pipeline for integrating and analyzing single-cell RNA sequencing (scRNA-seq) data from multiple sources to study oligodendrocyte lineage cells in various mouse models (Alzheimer's Disease, Cuprizone model, etc.).
 
@@ -9,7 +9,7 @@ The following datasets are processed and integrated:
 - **GSE148676**: Cuprizone-induced demyelination model.
 
 
-## Single-Cell RNA-seq Analysis Pipeline for Oligodendrocyte Lineage
+### Figure 2 & Supplementary Figure 6
 
 This repository contains the full computational pipeline for analyzing single-cell RNA-sequencing (scRNA-seq) data, focusing on Oligodendrocyte lineage cells in 5xFAD vs. WT mouse models.
 
