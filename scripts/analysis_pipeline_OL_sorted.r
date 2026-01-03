@@ -57,7 +57,7 @@ suppressPackageStartupMessages({
 })
 
 # Load custom functions
-# source('path/to/scripts/single_cell_function_20230601.R') # Ensure this file is available
+source("./functions/single_cell_function_mouse.r")
 
 # Define Base Directory (Adjust this for your environment)
 BASE_DIR <- "/path/to/" 
