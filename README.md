@@ -71,3 +71,6 @@ The analysis relies on the following R packages:
 ###### Custom Packages
 - indRop (In-house package for processing inDrops data)
 ```
+
+### 📜 Citation
+"under review"
