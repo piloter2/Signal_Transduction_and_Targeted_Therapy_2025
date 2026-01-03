@@ -22,6 +22,10 @@ suppressPackageStartupMessages({
   library(ComplexHeatmap)
   library(EnhancedVolcano)
   library(openxlsx)
+  library(Seurat)
+  library(tidyverse)
+  library(cowplot); library(ggpubr)
+  library(RColorBrewer)
 })
 
 # --- Parameters & Paths ---
@@ -190,3 +194,115 @@ p_check_merged <- DimPlot(OL.merged, reduction = "umap", label = FALSE, pt.size 
 
 # print(p_check_cop)
 # print(p_check_merged)
+# ==============================================================================
+# 5. Visualization Functions
+# ==============================================================================
+ref.merge <- readRDS(file=paste0("/path/to","/data/ref.merge.rds"))
+ref.merge <- UpdateSeuratObject(ref.merge)
+
+if (!"SCT_snn_res.0.3" %in% colnames(ref.merge@meta.data)) {
+  ref.merge <- FindClusters(ref.merge, resolution = 0.3, algorithm = 2)
+}
+
+celltype_map <- c(
+  "0" = "OLG", "1" = "MG", "2" = "MG", "3" = "OPC",
+  "4" = "OLG", "5" = "OLG", "6" = "ASC", "7" = "BMEC",
+  "8" = "pericytes", "9" = "EN", "10" = "Choroid", "11" = "Reelin",
+  "12" = "OLG", "13" = "OLG", "14" = "TCell", "15" = "VSMC",
+  "16" = "immune_a", "17" = "Ependymal", "18" = "microOPC", "19" = "OLG",
+  "20" = "microOLG", "21" = "NPC", "22" = "C15", "23" = "COP",
+  "24" = "microAstro", "25" = "VLMC", "26" = "immune_b", "27" = "OLG",
+  "28" = "Choroid"
+)
+
+Idents(ref.merge) <- "SCT_snn_res.0.3"
+ref.merge <- RenameIdents(ref.merge, celltype_map)
+ref.merge$ref.celltype <- Idents(ref.merge)
+
+# Define Order for Plots
+plot_order <- c(
+  "ASC", "OPC", "COP", "OLG", # Glia / Oligo lineage
+  "NPC", "EN", "Reelin",      # Neuronal
+  "BMEC", "pericytes", "VLMC", "VSMC", # Vascular
+  "MG", "TCell", "immune_a", "immune_b", # Immune
+  "Choroid", "Ependymal",     # Others
+  "microAstro", "microOPC", "microOLG", "C15" # Micro-clusters
+)
+
+cat("Generating UMAP...\n")
+# Combine palettes from ggsci
+custom_pal <- c(
+  pal_aaas("default", alpha = 0.6)(10)[1:8], 
+  pal_npg("nrc", alpha = 0.6)(10), 
+  pal_nejm("default", alpha = 0.6)(8)
+)
+
+# Supplementary Figure 2i
+require(ggsci)
+p_umap <- DimPlot(ref.merge, label = TRUE, label.size = 6, pt.size = 0.01, raster = FALSE, cols = custom_pal) + 
+  theme(legend.position = "none", 
+        axis.title = element_blank(), 
+        plot.title = element_text(size = 12, face = "bold", hjust = 0),
+        axis.line = element_blank(), 
+        axis.text = element_blank(), 
+        axis.ticks = element_blank()) + 
+  NoAxes()
+
+
+### 3.2 Supplementary Figure 2j: Heatmap of Marker Genes
+cat("Generating Heatmap...\n")
+marker_features <- c(
+  "Tmem212", "Mrc1", "Cd3e", "Aif1", "Tagln", "Slc6a13", "Vtn", "Cldn5", 
+  "Snap25", "Pax6", "Plp1", "Bmp4", "Pdgfra", "Slc1a3"
+)
+
+# Calculate Average Expression
+avg_list <- AverageExpression(ref.merge, features = marker_features, assays = "SCT", slot = "data")
+avg_mat <- avg_list$SCT
+
+# Reorder columns (clusters) and rows (genes)
+valid_cols <- plot_order[plot_order %in% colnames(avg_mat)]
+avg_mat <- avg_mat[marker_features, valid_cols]
+
+# Draw Heatmap
+pheatmap(
+  avg_mat,
+  scale = "row",
+  border_color = "white",
+  cluster_rows = FALSE,
+  cluster_cols = FALSE,
+  color = colorRampPalette(rev(brewer.pal(11, "RdBu")))(100)
+)
+
+### 3.3 Supplementary Figure 2k: Violin Plot (Bmp4)
+cat("Generating Violin Plot...\n")
+p_vln <- VlnPlot(ref.merge, features = "Bmp4", assay = "SCT", pt.size = 0.01)
+
+# Reorder factor levels for x-axis
+p_vln$data$ident <- factor(p_vln$data$ident, levels = plot_order)
+
+p_vln_final <- p_vln +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+print(p_vln_final)
+cat("Finding All Markers (Method: MAST)... This may take time.\n")
+
+# Prepare object for DE analysis
+ref.merge <- PrepSCTFindMarkers(ref.merge, assay = "SCT")
+
+# Find Markers
+ref.merge.markers <- FindAllMarkers(
+  ref.merge, 
+  logfc.threshold = 0.1,
+  only.pos = TRUE,
+  assay = "SCT", 
+  test.use = "MAST", 
+  recorrect_umi = FALSE
+)
+
+# Export to Excel
+cat("Saving markers to Excel...\n")
+df_list <- split(ref.merge.markers, ref.merge.markers$cluster)
+write_xlsx(df_list, path = MARKER_OUT_PATH)
+
