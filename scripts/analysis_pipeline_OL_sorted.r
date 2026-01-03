@@ -104,12 +104,7 @@ preprocess_seurat <- function(obj, mt_pattern = "^mt\\.", hb_pattern = "^Hb[ab]"
 # 3. Loading Datasets
 # ==============================================================================
 
-# --- 3.1 Load In-House / OL Sorted Data ---
-
-
-# --- 3.2 Load Public Datasets (GSE160512, GSE153895, GSE278199) ---
-
-#  GSE278199
+# --- 3.1 Load Public Datasets - GSE278199
 cat("Loading GSE278199...\n")
 gse278199_path <- file.path(BASE_DIR, "/data/GSE278199/GSE278199_OPC_cells.rds")
 if (file.exists(gse278199_path)) {
@@ -130,7 +125,7 @@ if (file.exists(gse278199_path)) {
   GSE278199.obj <- preprocess_seurat(GSE278199.obj)
 }
 
-#  GSE160512
+# --- 3.2 Load Public Datasets - GSE160512
 
 path_GSE160512 <- file.path(BASE_DIR, "data","GSE160512","raw")
 fileListCNTs <- list.files(path_GSE160512, pattern = ".txt.gz")
@@ -172,8 +167,7 @@ for(y in seq_len(length(GSE160512.obj))){
     GSE160512.oligo[[y]] <- GSE160512.obj[[y]][, grep("^oligo|^OPC|^COP", GSE160512.obj[[y]]@meta.data$celltype)]
 }
 
-
-# GSE153895
+# --- 3.3 Load Public Datasets -  GSE153895
 
 path_GSE153895 <- file.path(BASE_DIR, "data" ,"reference","GSE153895","raw")
 fileListCNTs <- list.files(path_GSE153895, pattern = ".txt.gz")
