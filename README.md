@@ -20,7 +20,7 @@ Investigation of BMP4 signaling in OPCs and their crosstalk with Microglia. Inte
 
 #### Datasets Integrated:
 The following datasets are processed and integrated:
-- **In-house Data**: 5xFAD vs WT (inDrops platform)
+- **In-house Data**: BMP4KO;5xFAD vs BMP4KO;WT (inDrops platform)
 - **GSE71585**: Reference dataset (SmartSeq2)
 
 ### 🚀 Analysis Workflow
