@@ -9,7 +9,7 @@ The following datasets are processed and integrated:
 - **GSE148676**: Cuprizone-induced demyelination model.
 
 
-### Figure 2 & Supplementary Figure 6
+### Figure 2 & Supplementary Figure 6, 8
 
 This repository contains the full computational pipeline for analyzing single-cell RNA-sequencing (scRNA-seq) data, focusing on Oligodendrocyte lineage cells in 5xFAD vs. WT mouse models.
 
@@ -33,6 +33,4 @@ This pipeline uses **R version 4.x**. Ensure the following packages are installe
 * **CRAN**: `Seurat`, `tidyverse`, `Matrix`, `harmony`, `parallel`, `doParallel`
 * **Bioconductor**: `SingleCellExperiment`, `scDblFinder`, `clusterProfiler`, `ReactomePA`, `EnhancedVolcano`, `UCell`
 * **Custom/GitHub**: `indRop`, `Nebulosa`
-install.packages(c("Seurat", "tidyverse", "Matrix", "cowplot", "ggpubr", "harmony", "BiocManager"))
-BiocManager::install(c("biomaRt", "SingleCellExperiment", "scDblFinder"))
 # Note: 'indRop' is a custom package required for reading Indrop data.
