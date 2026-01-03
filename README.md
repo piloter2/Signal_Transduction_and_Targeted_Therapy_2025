@@ -56,7 +56,7 @@ The pipeline consists of two main stages:
 
 ##### 🛠 Environments & Dependencies
 The analysis relies on the following R packages:
-''r 
+```
 ###### Core R Packages
 - Seurat (v4.0+)
 - Harmony (Integration)
@@ -72,4 +72,4 @@ The analysis relies on the following R packages:
 
 ###### Custom Packages
 - indRop (In-house package for processing inDrops data)
-
+```
