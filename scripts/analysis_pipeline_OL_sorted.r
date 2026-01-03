@@ -1,5 +1,5 @@
 # ==============================================================================
-# Title: Single-Cell RNA-seq Analysis of Oligodendrocyte Lineage in 5xFAD Mice
+# Title : Oligodendrocyte precusor cells-microglia cross talk via BMP4 signaling drives microglial neuroprotective response and mitigates Alzheimer's diseas progression
 # Description: Integration and analysis of in-house and public scRNA-seq datasets 
 #              to investigate oligodendrocyte changes in Alzheimer's disease models.
 # Author: Jaemyung Jang / Korea Brain Research Institute
@@ -58,206 +58,223 @@ suppressPackageStartupMessages({
 
 # Load custom functions
 source("./functions/single_cell_function_mouse.r")
+options(warn=-1)
 
-# Define Base Directory (Adjust this for your environment)
-BASE_DIR <- "/path/to/" 
-OUTPUT_DIR <- file.path(BASE_DIR, "OL_sorted", "results")
-if (!dir.exists(OUTPUT_DIR)) dir.create(OUTPUT_DIR, recursive = TRUE)
+# Base Directories (USER MUST UPDATE THESE PATHS)
+BASE_DIR <- "/path/to/data" 
+OUT_DIR  <- "/path/to/results"
 
-# Set seed for reproducibility
-set.seed(1234)
+# Define Marker Genes
+OL_MARKERS <- c(
+  "Pdgfra","Vcan","Olig1","Ptprz1","Olig2", # OPC
+  "Plp1","Cldn11","Cnp","Tspan2","Mobp",    # Oligodendrocyte
+  "Trf","Apod","Ermn","Car2",
+  "Ptgds","Plp1","Mal","Cryab","Car2", 
+  "Fyn","Sirt2","Tuba1a","Bcas1","Enpp6",   # COP
+  "Hexb","Ctss","C1qb","C1qc","Cx3cr1",     # Microglia
+  "Lyz2","Mrc1","Pf4","Ctsb","F13a1",       # Macrophage
+  "Ly6c1","Ly6a","Flt1","Itm2a","Slco1a4",  # Endothelial
+  "Rgs5","Acta2","Myl9","Tagln","Cald1",    # Mural
+  "Dcn","Col1a2","Igf2","Igfbp2","Pcolce",  # VLMC
+  "Ccdc153","Rarres2","Tmem212","Nnat","Rsph1", # Ependyma    
+  "Cpe","Apoe","Cst3","Mt1","Dbi","Aldoc","Gja1","Slc1a2","Slc1a3","Clu", # Astrocyte
+  "Ccnd2","Tubb5","Dlx1","Tmsb10","Tuba1a", # NSC
+  "Hmgb2","Top2a","Hmgn2","Tubb5","H2afz",  # NSC    
+  "Sst","Npy","Resp18","Nap1l5","Nos1",     # Neuron
+  "Lypd1","Meg3","Atp1b1","Snhg11","Olfm1", # Neuron
+  "Penk","Arpp21","Ppp3ca","Atp2b1","Hpca"  # Neuron
+)
 
-# ==============================================================================
-# 2. Data Loading and Preprocessing Functions
-# ==============================================================================
+# Mitochondrial & Hemoglobin Patterns
+mt.genes.pattern <- "^mt."
+hb.genes.pattern <- paste0(c('Hbp1','Hbq1a','Hbb.y','Hbb.bh1','Hbb.bs','Hba.x','Hba.a2','Hba.a1','Hbq1b','Hbb.bt','Hbb.bh2','Hbb.bh3','Hba.ps4','Hbb.bh0'), collapse = "|")
 
-# Function to read 10X data from a directory (Wrapper for Read10X or custom loading)
-# Note: You were using 'readIndrop' and 'Read10X_GEO'. 
-# Ensure these functions are defined or loaded.
-# Here is a generic placeholder structure.
-
-load_seurat_object <- function(data_path, sample_name, project_name, min_cells = 0) {
-  # Logic to read data based on format (mtx, txt, etc.)
-  # This part relies on your specific 'readIndrop' or 'Read10X' usage
-  # For example:
-  # counts <- Read10X(data_path) 
-  # or
-  # counts <- readIndrop(data_path)
-  
-  # For this refactor, assuming counts are loaded into 'counts_matrix'
-  # seurat_obj <- CreateSeuratObject(counts = counts_matrix, project = project_name, min.cells = min_cells)
-  # return(seurat_obj)
-  return(NULL) # Placeholder
-}
-
-# Function for basic QC and Filtering
-preprocess_seurat <- function(obj, mt_pattern = "^mt\\.", hb_pattern = "^Hb[ab]") {
-  obj[["percent.mt"]] <- PercentageFeatureSet(obj, pattern = mt_pattern)
-  obj[["percent.hb"]] <- PercentageFeatureSet(obj, pattern = hb_pattern)
-  
-  # Add filtering logic here if needed (e.g., subset based on features/counts)
-  
-  return(obj)
-}
-
-# ==============================================================================
-# 3. Loading Datasets
-# ==============================================================================
-
-# --- 3.1 Load Public Datasets - GSE278199
-cat("Loading GSE278199...\n")
-gse278199_path <- file.path(BASE_DIR, "/data/GSE278199/GSE278199_OPC_cells.rds")
-if (file.exists(gse278199_path)) {
-  counts_278199 <- readRDS(gse278199_path)
-  rownames(counts_278199) <- gsub("-", "\\.", rownames(counts_278199))
-  
-  GSE278199.obj <- CreateSeuratObject(counts = counts_278199, min.cells = 0)
-  GSE278199.obj$basic <- "GSE278199"
-  
-  # Assign Metadata (simplify logic)
-  sample_ids <- str_sub(colnames(GSE278199.obj), 1, 1)
-  GSE278199.obj$id <- case_when(
-    sample_ids == names(table(sample_ids))[1] ~ "naïve",
-    sample_ids == names(table(sample_ids))[2] ~ "saline_CPZ3",
-    sample_ids == names(table(sample_ids))[3] ~ "XPro1595_CPZ3",
-    TRUE ~ "Unknown"
-  )
-  GSE278199.obj <- preprocess_seurat(GSE278199.obj)
-}
-
-# --- 3.2 Load Public Datasets - GSE160512
-
-path_GSE160512 <- file.path(BASE_DIR, "data","GSE160512","raw")
-fileListCNTs <- list.files(path_GSE160512, pattern = ".txt.gz")
-path_in_counts.raw <- paste0(path_GSE160512,"/",fileListCNTs)
-names(fileListCNTs) <- path_in_counts.raw
-
-GSE160512.meta <- read.table(paste0(BASE_DIR,"/data/GSE160512/GSE160512_PS2APPTsneCoordinatesAndClusterAssignments.txt.gz"), header =T, sep="\t")
-GSE160512.meta <- GSE160512.meta %>% tibble::column_to_rownames('cellID')
-
-require(biomaRt)
-annot <- c()
-GSE160512.obj <- list()
-
-ensembl <- useMart('ensembl', dataset = 'mmusculus_gene_ensembl')
-for(x in path_in_counts.raw){
-    require(indRop)
-    temp <- readIndrop(x)
-    annot <- getBM(attributes = c('mgi_symbol','ensembl_gene_id'),filters = 'ensembl_gene_id',values = colnames(temp),mart = ensembl)
-    annot <- annot[-c(which((annot$mgi_symbol == '') | duplicated(annot$mgi_symbol) | duplicated(annot$ensembl_gene_id))),]
-    temp <- temp[,annot$ensembl_gene_id]
-    colnames(temp) <- gsub("-","\\.", annot$mgi_symbol)
-    GSE160512.obj[[fileListCNTs[x]]] <- CreateSeuratObject(counts = t(temp), min.cells = 0)               
-}
-
-for(x in path_in_counts.raw){
-    y <- fileListCNTs[x]
-    GSE160512.obj[[y]]@meta.data$id <- fileListCNTs[x]
-    GSE160512.obj[[y]]@meta.data$basic <- "GSE160512"
-    GSE160512.obj[[y]]@meta.data$percent.mt <- PercentageFeatureSet(GSE160512.obj[[y]], pattern = paste0(c(mt.genes,"^mt."), collapse = "|"))
-    GSE160512.obj[[y]]@meta.data$percent.hb <- PercentageFeatureSet(GSE160512.obj[[y]], pattern = paste0(c('Hbq1a','Hbb.y','Hbb.bh1','Hbb.bs','Hba.x','Hba.a2','Hba.a1','Hbq1b','Hbb.bt','Hbb.bh2','Hbb.bh3','Hba.ps4','Hbb.bh0'), collapse = "|"))
-
-    GSE160512.obj[[y]]@meta.data$celltype <- GSE160512.meta[colnames(GSE160512.obj[[y]]),]$allCells.cluster.interpretation
-    GSE160512.obj[[y]]@meta.data$type <- GSE160512.meta[colnames(GSE160512.obj[[y]]),]$genotype
-}
-
-GSE160512.oligo <- list()
-
-for(y in seq_len(length(GSE160512.obj))){
-    GSE160512.oligo[[y]] <- GSE160512.obj[[y]][, grep("^oligo|^OPC|^COP", GSE160512.obj[[y]]@meta.data$celltype)]
-}
-
-# --- 3.3 Load Public Datasets -  GSE153895
-
-path_GSE153895 <- file.path(BASE_DIR, "data" ,"reference","GSE153895","raw")
-fileListCNTs <- list.files(path_GSE153895, pattern = ".txt.gz")
-path_in_counts.raw <- paste0(path_GSE153895,"/",fileListCNTs)
-names(fileListCNTs) <- path_in_counts.raw
-
-GSE153895.meta <- read.table(paste0(BASE_DIR,"/data//GSE153895/GSE153895_TsneCoordinatesAndClusterAssignments.txt.gz"), header =T, sep="\t")
-GSE153895.meta <- GSE153895.meta %>% tibble::column_to_rownames('cellID')
-
-require(biomaRt)
-annot <- c()
-GSE153895.obj <- list()
+# Initialize Ensembl Mart
 ensembl <- useMart('ensembl', dataset = 'mmusculus_gene_ensembl')
 
-for(x in path_in_counts.raw){
-    require(indRop)
-    temp <- readIndrop(x)
-    annot <- getBM(attributes = c('mgi_symbol','ensembl_gene_id'),filters = 'ensembl_gene_id',values = colnames(temp),mart = ensembl)
-    annot <- annot[-c(which((annot$mgi_symbol == '') | duplicated(annot$mgi_symbol) | duplicated(annot$ensembl_gene_id))),]
-    temp <- temp[,annot$ensembl_gene_id]
-    colnames(temp) <- gsub("-","\\.", annot$mgi_symbol)
-
-    GSE153895.obj[[fileListCNTs[x]]] <- CreateSeuratObject(counts = t(temp), min.cells = 0)               
+# Helper Function for Gene Conversion and Object Creation
+create_seurat_from_indrop <- function(file_path, mart_obj) {
+  temp <- readIndrop(file_path)
+  
+  # Convert Ensembl IDs to Gene Symbols
+  annot <- getBM(attributes = c('mgi_symbol','ensembl_gene_id'),
+                 filters = 'ensembl_gene_id',
+                 values = colnames(temp),
+                 mart = mart_obj)
+  
+  # Remove duplicates and empty symbols
+  annot <- annot[-c(which((annot$mgi_symbol == '') | duplicated(annot$mgi_symbol) | duplicated(annot$ensembl_gene_id))),]
+  
+  temp <- temp[, annot$ensembl_gene_id]
+  colnames(temp) <- gsub("-", "\\.", annot$mgi_symbol)
+  
+  sobj <- CreateSeuratObject(counts = t(temp), min.cells = 0)
+  return(sobj)
 }
 
+# ------------------------------------------------------------------------------
+# 2. Data Loading & Preprocessing
+# ------------------------------------------------------------------------------
 
-for(x in path_in_counts.raw){
-    y <- fileListCNTs[x]
-    GSE153895.obj[[y]]@meta.data$celltype <- GSE153895.meta[colnames(GSE153895.obj[[y]]),]$allCells.cluster.interpretation
-    GSE153895.obj[[y]]@meta.data$type <- GSE153895.meta[colnames(GSE153895.obj[[y]]),]$genotype
+### 2.1 Load GSE160512
+cat("Processing GSE160512...\n")
+path_gse160512 <- file.path(BASE_DIR, "GSE160512", "raw")
+files_160512 <- list.files(path_gse160512, pattern = ".txt.gz", full.names = TRUE)
+meta_160512 <- read.table(file.path(BASE_DIR, "GSE160512", "GSE160512_PS2APPTsneCoordinatesAndClusterAssignments.txt.gz"), header =T, sep="\t") %>% 
+  tibble::column_to_rownames('cellID')
 
-    GSE153895.obj[[y]]@meta.data$id <- fileListCNTs[x]
-    GSE153895.obj[[y]]@meta.data$basic <- "GSE153895"
-    GSE153895.obj[[y]]@meta.data$percent.mt <- PercentageFeatureSet(GSE153895.obj[[y]], pattern = paste0(c(mt.genes,"^mt."), collapse = "|"))
-    GSE153895.obj[[y]]@meta.data$percent.hb <- PercentageFeatureSet(GSE153895.obj[[y]], pattern = paste0(c('Hbq1a','Hbb.y','Hbb.bh1','Hbb.bs','Hba.x','Hba.a2','Hba.a1','Hbq1b','Hbb.bt','Hbb.bh2','Hbb.bh3','Hba.ps4','Hbb.bh0'), collapse = "|"))
-    # GSE153895.obj.OL[[y]] <- GSE153895.obj[[y]][, grep("^oligo|^OPC|^COP|C15", GSE153895.obj[[y]]$GSE153895.celltype)]
-
+obj_list_160512 <- list()
+for(f in files_160512) {
+  fname <- basename(f)
+  sobj <- create_seurat_from_indrop(f, ensembl)
+  
+  sobj$id <- fname
+  sobj$basic <- "GSE160512"
+  sobj$percent.mt <- PercentageFeatureSet(sobj, pattern = paste0(c(mt.genes.pattern), collapse = "|"))
+  sobj$percent.hb <- PercentageFeatureSet(sobj, pattern = hb.genes.pattern)
+  
+  # Metadata mapping
+  common_cells <- intersect(colnames(sobj), rownames(meta_160512))
+  sobj <- subset(sobj, cells = common_cells) # Ensure matching cells
+  sobj$GSE160512.celltype <- meta_160512[colnames(sobj),]$allCells.cluster.interpretation
+  sobj$GSE160512.genotype <- meta_160512[colnames(sobj),]$genotype
+  
+  obj_list_160512[[fname]] <- sobj
 }
 
+# 2.2 Load GSE153895
+cat("Processing GSE153895...\n")
+path_gse153895 <- file.path(BASE_DIR, "GSE153895", "raw")
+files_153895 <- list.files(path_gse153895, pattern = ".txt.gz", full.names = TRUE)
+meta_153895 <- read.table(file.path(BASE_DIR, "GSE153895", "GSE153895_TsneCoordinatesAndClusterAssignments.txt.gz"), header =T, sep="\t") %>% 
+  tibble::column_to_rownames('cellID')
 
-GSE153895.oligo <- list()
+obj_list_153895 <- list()
+for(f in files_153895) {
+  fname <- basename(f)
+  sobj <- create_seurat_from_indrop(f, ensembl)
+  
+  sobj$id <- fname
+  sobj$basic <- "GSE153895"
+  sobj$percent.mt <- PercentageFeatureSet(sobj, pattern = paste0(c(mt.genes.pattern), collapse = "|"))
+  sobj$percent.hb <- PercentageFeatureSet(sobj, pattern = hb.genes.pattern)
+  
+  common_cells <- intersect(colnames(sobj), rownames(meta_153895))
+  sobj <- subset(sobj, cells = common_cells)
+  sobj$GSE153895.celltype <- meta_153895[colnames(sobj),]$allCells.cluster.interpretation
+  sobj$GSE153895.genotype <- meta_153895[colnames(sobj),]$genotype
+  
+  obj_list_153895[[fname]] <- sobj
+}
+# Select specific subsets as per original code
+obj_list_153895_sub <- obj_list_153895[c(6,7,9,11,12)] 
 
-for(y in seq_len(length(GSE153895.obj))){
-    GSE153895.oligo[[y]] <- GSE153895.obj[[y]][, grep("^oligo|^OPC|^COP|C15", GSE153895.obj[[y]]@meta.data$celltype)]
+# 2.3 Load GSE148676
+cat("Processing GSE148676...\n")
+path_gse148676 <- file.path(BASE_DIR, "GSE148676")
+files_148676 <- list.files(path_gse148676, pattern = ".txt.gz", full.names = TRUE)
+
+# Metadata for GSE148676
+type_map <- data.frame(
+  type = c("WT_Baseline_rep1", "WT_Baseline_rep2", "WT_Cuprizone_4w_rep1", 
+           "WT_Cuprizone_4w_rep2", "WT_Baseline_rep3", "WT_Cuprizone_4w_rep3", "WT_Cuprizone_4w_rep4"),
+  row.names = c("GSM4476524", "GSM4476526","GSM4476528","GSM4476532","GSM4476536", "GSM4476538", "GSM4476540")
+)
+
+obj_list_148676 <- list()
+for(f in files_148676) {
+  fname <- basename(f)
+  sobj <- create_seurat_from_indrop(f, ensembl)
+  
+  sobj$id <- fname
+  sobj$basic <- "GSE148676"
+  gsm_id <- strsplit(fname, "_")[[1]][1]
+  sobj$type <- type_map[gsm_id, "type"]
+  sobj$percent.mt <- PercentageFeatureSet(sobj, pattern = paste0(c(mt.genes.pattern), collapse = "|"))
+  sobj$percent.hb <- PercentageFeatureSet(sobj, pattern = hb.genes.pattern)
+  
+  obj_list_148676[[fname]] <- sobj
 }
 
+# ------------------------------------------------------------------------------
+# 3. Integration & Normalization
+# ------------------------------------------------------------------------------
+cat("Merging datasets...\n")
+ref.merge <- merge(
+  x = obj_list_160512[[1]], 
+  y = c(obj_list_160512[-1], obj_list_153895_sub, obj_list_148676), 
+  project = 'merged', 
+  merge.data = TRUE
+)
 
-# ==============================================================================
-# 4. Integration and Dimensionality Reduction
-# ==============================================================================
+cat("Running SCTransform...\n")
+ref.merge <- SCTransform(ref.merge, assay = 'RNA', new.assay.name = 'SCT', 
+                         vars.to.regress = c("percent.mt", "nFeature_RNA"), verbose = TRUE)
+ref.merge <- FindVariableFeatures(ref.merge, assay = "SCT", nfeatures = 2000)
 
-# Merge Datasets
-OL.merge <- merge(GSE278199.obj, y = c(GSE153895.oligo, GSE160512.oligo), project = 'merged')
+cat("Running PCA & Harmony...\n")
+pcs <- 1:30
+DefaultAssay(ref.merge) <- "SCT"
+ref.merge <- RunPCA(ref.merge, verbose = FALSE, assay = "SCT", features = VariableFeatures(ref.merge))
+ref.merge <- RunHarmony(ref.merge, group.by.vars = "id", assay.use = "SCT", dims = pcs)
 
-# Normalization and Regression
-OL.merge <- OL.merge %>%
-                  SCTransform(assay = 'RNA',      
-                              new.assay.name = 'SCT',  
-                              vars.to.regress = c("percent.mt","percent.hb","nFeature_RNA"),
-                              verbose = T) 
-# Integration Features
+cat("Clustering & UMAP...\n")
+ref.merge <- RunUMAP(ref.merge, reduction = "harmony", umap.method = "umap-learn", assay = "SCT", dims = pcs)
+ref.merge <- FindNeighbors(ref.merge, reduction = "harmony", dims = pcs, assay = "SCT")
+ref.merge <- FindClusters(ref.merge, resolution = seq(0.1, 1, 0.1), algorithm = 2)
 
-OL.features <- SelectIntegrationFeatures(object.list = list(GSE278199.obj, GSE153895.oligo, GSE160512.oligo), nfeatures = 3000)
-OL.feature <- OL.features[-grep("^mt.|Rik$|^Hba.|^Hbb.",OL.features)]
+# ------------------------------------------------------------------------------
+# 4. Visualization
+# ------------------------------------------------------------------------------
+options(repr.plot.width = 25, repr.plot.height = 35)
 
-# Dimensionality Reduction
-pcs <- 1:25
-OL.merged <- OL.merge %>%
-                          RunPCA(verbose = FALSE, assay = "SCT", features = OL.feature ) %>%
-                          RunHarmony(group.by=c("basic"), assay.use = "SCT", dims=pcs, max.iter.harmony = 100, max.iter.cluster=250) %>% 
-                          RunUMAP(reduction = "harmony", umap.method = "umap-learn", assay = "SCT",  dims=pcs) %>%
-                          FindNeighbors(reduction = "harmony", dims=pcs, assay = "SCT") %>%
-                          FindClusters(resolution = seq(0.1,1.6,0.1), algorithm = 2)
+p1 <- list()
+p1[[1]] <- DimPlot(ref.merge, reduction = "umap", group.by = "id", label = T) + NoLegend()
+p1[[2]] <- DimPlot(ref.merge, group.by = "id", label = T) + NoLegend()
+p1[[3]] <- DimPlot(ref.merge, group.by = "SCT_snn_res.0.5", label = T)
+p1[[4]] <- DimPlot(ref.merge, group.by = "basic", label = T)
+p1[[5]] <- DotPlot(ref.merge, group.by = "SCT_snn_res.0.5", features = unique(OL_MARKERS), assay="SCT") + coord_flip()
 
-# ==============================================================================
-# 5. Cell Type Annotation and Markers
-# ==============================================================================
+# Save plots
+# ggsave(file.path(OUT_DIR, "QC_Plots.pdf"), plot = plot_grid(plotlist = p1, ncol=2), width=25, height=35)
 
-# Set Identity
-Idents(OL.merged) <- "SCT_snn_res.0.4"
+# ------------------------------------------------------------------------------
+# 5. Annotation & Subsetting
+# ------------------------------------------------------------------------------
+# NOTE: Cluster IDs ("0", "1", etc.) may change between runs. Verify before assigning labels!
+celltype_map <- c(
+  "1" = "Oligodendrocyte", "3" = "OPC", "4" = "Oligodendrocyte", 
+  "5" = "Oligodendrocyte", "6" = "Oligodendrocyte", "14" = "Oligodendrocyte", 
+  "15" = "Oligodendrocyte", "21" = "Oligodendrocyte", "24" = "COP", 
+  "25" = "Oligodendrocyte", "26" = "OPC", "32" = "OPC", "33" = "Oligodendrocyte"
+)
 
-# Visualization
-p_umap <- DimPlot(OL.merged, reduction = "umap", label = TRUE, repel = TRUE) + NoLegend()
-print(p_umap)
+Idents(ref.merge) <- "SCT_snn_res.0.5"
+ref.merge <- RenameIdents(ref.merge, celltype_map)
+ref.merge$ref.celltype <- Idents(ref.merge) # Note: Clusters not in map become NA/Identity
 
-# DotPlot for Marker Genes
-markers_to_plot <- c("Pdgfra", "Cspg4", "Olig1", "Olig2", # OPC
-                     "Fyn", "Sirt2", "Enpp6", "Bcas1",    # COP/NFOL
-                     "Plp1", "Mbp", "Mog", "Mag",         # MOL
-                     "Cnp", "Mal") 
+# Genotype Normalization
+ref.merge$ref.genetype <- NA
+ref.merge$ref.genetype[grep("WT_Baseline", ref.merge$type)] <- "WT"
+ref.merge$ref.genetype[grep("WT_Cuprizone", ref.merge$type)] <- "MS"
+ref.merge$ref.genetype[grep("Non-Tg", ref.merge$GSE160512.genotype)] <- "WT"
+ref.merge$ref.genetype[grep("PS2APP", ref.merge$GSE160512.genotype)] <- "PS2APP"
+ref.merge$ref.genetype[grep("NonTg", ref.merge$GSE153895.genotype)] <- "WT"
+ref.merge$ref.genetype[grep("P301L", ref.merge$GSE153895.genotype)] <- "P301L"
 
-DotPlot(OL.merged, features = markers_to_plot, assay = "SCT", cols = "RdBu") + 
-  RotatedAxis() + coord_flip()
+# Subset Oligodendrocyte Lineage
+target_clusters <- c("1", "4", "5", "6", "14", "15", "21", "25", "33", "3", "24", "26", "32")
+ref.merge.oligo <- subset(ref.merge, idents = target_clusters) # Simplified subsetting logic if Idents are reset, otherwise use cell IDs
+
+# Final Plot check
+p_final_1 <- DimPlot(ref.merge.oligo, reduction = "umap", group.by = "ref.celltype", label = T)
+p_final_2 <- DimPlot(ref.merge.oligo, reduction = "umap", group.by = "ref.genetype", label = T)
+plot_grid(p_final_1, p_final_2)
+
+# ------------------------------------------------------------------------------
+# 6. Save Data
+# ------------------------------------------------------------------------------
+saveRDS(ref.merge, file.path(OUT_DIR, "ref.merge.rds"))
+saveRDS(ref.merge.oligo, file.path(OUT_DIR, "ref.merge.oligo.rds"))
+
+cat("Analysis Complete.\n")
