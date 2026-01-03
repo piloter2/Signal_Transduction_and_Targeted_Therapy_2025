@@ -7,6 +7,17 @@
 # ==============================================================================
 # 1. Environment & Libraries
 # ==============================================================================
+load.lib <- c("Seurat","SingleCellExperiment","dplyr","tidyverse","data.table","scales","RColorBrewer","ggplot2","SingleCellExperiment")
+
+if (!requireNamespace(load.lib, quietly = TRUE))
+    install.packages(load.lib)
+
+sapply(load.lib,suppressPackageStartupMessages(require),character.only = TRUE)
+
+require.lib <- c("pbapply","reshape2","stringr","ggvenn","stringi","BiocManager","RColorBrewer","xlsx")
+
+if (!requireNamespace(require.lib, quietly = TRUE))
+    install.packages(require.lib)
 suppressPackageStartupMessages({
   library(Seurat)
   library(dplyr)
@@ -17,6 +28,33 @@ suppressPackageStartupMessages({
   library(moments) # For skewness in scStress
   library(org.Mm.eg.db) # Mouse Annotation
 })
+
+
+pathREF <- file.path("/path",'to','data')
+path_in_genes <- paste0(pathREF,"/","NIHMS1516311-supplement-7.xlsx")
+
+library(openxlsx)
+cellcycle<-read.xlsx(path_in_genes)
+g1s.genes <- cellcycle %>% filter(Phase == "G1/S") %>% dplyr::select(Gene)
+s.genes <- cellcycle %>% filter(Phase == "S") %>% dplyr::select(Gene)
+g2m.genes <- cellcycle %>% filter(Phase == "G2/M") %>% dplyr::select(Gene)
+m.genes <- cellcycle %>% filter(Phase == "M") %>% dplyr::select(Gene)
+mg1.genes <- cellcycle %>% filter(Phase == "M/G1") %>% dplyr::select(Gene)
+
+
+require(nichenetr)
+genes.cc <- readLines(con=paste0(pathREF,"/","regev_lab_cell_cycle_genes.txt"))
+genes.ccc <- convert_human_to_mouse_symbols(genes.cc)
+genes.s <- genes.ccc[1:43]
+genes.g2m <- genes.ccc[44:97]
+
+
+g1s.gene <- as.character(g1s.genes$Gene)
+s.gene <- unique(c(genes.s, as.character(s.genes$Gene)))
+g2m.gene <- unique(c(genes.g2m, as.character(g2m.genes$Gene)))
+m.gene <- as.character(m.genes$Gene)
+mg1.gene <-  as.character(mg1.genes$Gene)
+
 
 # ==============================================================================
 # 2. QC & Preprocessing (Mouse Optimized)
@@ -113,6 +151,16 @@ Read10X_GEO <- function(data.dir, sample.names = NULL, gene.column = 2) {
 #' @param obj Seurat Object
 #' @param stress_genes Character vector of mouse stress genes
 #' @param cut Quantile cutoff (default 0.95)
+
+stress_file <- file.path(pathREF, "DEG_C2.CGP.M10970.txt")
+if(file.exists(stress_file)) {
+    genes.stress <- read_csv(paste0(pathREF, "/DEG_C2.CGP.M10970.txt"))
+    genes.stress <- genes.stress[2:nrow(genes.stress),]
+    genes.stress <- convert_human_to_mouse_symbols(genes.stress$CHUANG_OXIDATIVE_STRESS_RESPONSE_UP)
+} else {
+  warning("Stress gene file not found. Stress filtering will be skipped.")
+}
+
 scStress <- function(obj, stress_genes, cut = 0.95){
   
   # 1. Intersect genes
@@ -182,3 +230,4 @@ out_features <- function(x){
   )
   return(unique(out))
 }
+
